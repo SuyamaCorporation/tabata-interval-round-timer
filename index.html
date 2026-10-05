@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tabata Interval Round Timer</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  @keyframes pulse-ring { 0%{transform:scale(1);opacity:0.8} 50%{transform:scale(1.05);opacity:1} 100%{transform:scale(1);opacity:0.8} }
+  .pulse-anim { animation: pulse-ring 1s ease-in-out infinite; }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-4px)} 75%{transform:translateX(4px)} }
+  .shake-anim { animation: shake 0.3s ease-in-out; }
+</style>
+</head>
+<body class="bg-gray-900 min-h-screen flex items-center justify-center">
+<div class="w-full max-w-lg mx-auto px-4 py-8">
+
+  <!-- Config Panel -->
+  <div id="config-panel" class="bg-gray-800 rounded-2xl p-6 shadow-2xl">
+    <h1 class="text-2xl font-bold text-white text-center mb-6">Tabata Timer</h1>
+    <div class="grid grid-cols-2 gap-4 mb-6">
+      <div>
+        <label class="block text-sm font-medium text-gray-300 mb-1">Work (sec)</label>
+        <input id="workTime" type="number" value="20" min="5" max="300" class="w-full bg-gray-700 text-white border border-gray-600 rounded-lg px-3 py-2 text-center text-lg font-bold focus:outline-none focus:ring-2 focus:ring-red-400">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-300 mb-1">Rest (sec)</label>
+        <input id="restTime" type="number" value="10" min="3" max="300" class="w-full bg-gray-700 text-white border border-gray-600 rounded-lg px-3 py-2 text-center text-lg font-bold focus:outline-none focus:ring-2 focus:ring-blue-400">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-300 mb-1">Rounds per Set</label>
+        <input id="rounds" type="number" value="8" min="1" max="50" class="w-full bg-gray-700 text-white border border-gray-600 rounded-lg px-3 py-2 text-center text-lg font-bold focus:outline-none focus:ring-2 focus:ring-green-400">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-300 mb-1">Sets</label>
+        <input id="sets" type="number" value="1" min="1" max="10" class="w-full bg-gray-700 text-white border border-gray-600 rounded-lg px-3 py-2 text-center text-lg font-bold focus:outline-none focus:ring-2 focus:ring-yellow-400">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-300 mb-1">Rest Between Sets (sec)</label>
+        <input id="setBetween" type="number" value="60" min="5" max="300" class="w-full bg-gray-700 text-white border border-gray-600 rounded-lg px-3 py-2 text-center text-lg font-bold focus:outline-none focus:ring-2 focus:ring-purple-400">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-300 mb-1">Prepare (sec)</label>
+        <input id="prepTime" type="number" value="10" min="0" max="60" class="w-full bg-gray-700 text-white border border-gray-600 rounded-lg px-3 py-2 text-center text-lg font-bold focus:outline-none focus:ring-2 focus:ring-orange-400">
+      </div>
+    </div>
+
+    <!-- Session Total -->
+    <div class="bg-gray-700 rounded-lg p-3 mb-4 text-center">
+      <span class="text-gray-400 text-sm">Total Session Time: </span>
+      <span id="total-time" class="text-white font-bold"></span>
+    </div>
+
+    <button onclick="startTimer()" class="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl text-lg font-bold transition-colors">Start Workout</button>
+  </div>
+
+  <!-- Timer Panel -->
+  <div id="timer-panel" class="hidden">
+    <!-- Phase display -->
+    <div id="phase-bg" class="rounded-2xl p-6 shadow-2xl transition-colors duration-500 bg-gray-800">
+      <div class="text-center mb-6">
+        <div id="phase-label" class="text-2xl font-bold text-white uppercase tracking-widest mb-1">PREPARE</div>
+        <div id="set-label" class="text-gray-300 text-sm">Set 1 of 1 · Round 1 of 8</div>
+      </div>
+
+      <!-- Big Timer -->
+      <div class="flex justify-center mb-6">
+        <div id="timer-circle" class="relative">
+          <svg width="220" height="220" class="transform -rotate-90" aria-hidden="true">
+            <circle cx="110" cy="110" r="95" fill="none" stroke="#374151" stroke-width="10"/>
+            <circle id="timer-ring" cx="110" cy="110" r="95" fill="none" stroke="#ef4444" stroke-width="10" stroke-linecap="round"
+              stroke-dasharray="596.9" stroke-dashoffset="0"/>
+          </svg>
+          <div class="absolute inset-0 flex flex-col items-center justify-center">
+            <div id="countdown" class="text-6xl font-black text-white tabular-nums">10</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Round Indicators -->
+      <div id="round-indicators" class="flex gap-1.5 flex-wrap justify-center mb-6" aria-label="Round progress"></div>
+
+      <!-- Progress Bar -->
+      <div class="mb-4">
+        <div class="flex justify-between text-xs text-gray-400 mb-1">
+          <span id="total-progress-label">Overall Progress</span>
+          <span id="total-pct">0%</span>
+        </div>
+        <div class="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+          <div id="total-bar" class="h-2 rounded-full bg-white transition-all duration-1000" style="width:0%"></div>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <div class="flex gap-3">
+        <button onclick="togglePause()" id="pause-btn" class="flex-1 bg-white bg-opacity-20 hover:bg-opacity-30 text-white py-2.5 rounded-xl font-medium transition-colors" aria-label="Pause/Resume">Pause</button>
+        <button onclick="stopTimer()" class="flex-1 bg-white bg-opacity-10 hover:bg-opacity-20 text-white py-2.5 rounded-xl font-medium transition-colors">Stop</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let audioCtx = null;
+let interval = null;
+let state = {};
+let paused = false;
+
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function beep(freq=880, dur=0.15, vol=0.4, type='sine') {
+  try {
+    const ctx = getAudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.frequency.value = freq;
+    osc.type = type;
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+dur);
+    osc.start(ctx.currentTime); osc.stop(ctx.currentTime+dur);
+  } catch(e){}
+}
+
+function tripleBeep() { beep(880,0.1); setTimeout(()=>beep(880,0.1),150); setTimeout(()=>beep(1320,0.2),300); }
+function countdownBeep() { beep(660,0.08); }
+function completionBell() {
+  beep(523,0.3,0.5,'sine'); setTimeout(()=>beep(659,0.3,0.5,'sine'),200);
+  setTimeout(()=>beep(784,0.3,0.5,'sine'),400); setTimeout(()=>beep(1047,0.6,0.5,'sine'),600);
+}
+
+function calcTotal() {
+  const work=parseInt(document.getElementById('workTime').value)||20;
+  const rest=parseInt(document.getElementById('restTime').value)||10;
+  const rounds=parseInt(document.getElementById('rounds').value)||8;
+  const sets=parseInt(document.getElementById('sets').value)||1;
+  const between=parseInt(document.getElementById('setBetween').value)||60;
+  const prep=parseInt(document.getElementById('prepTime').value)||10;
+  const setTime=(work+rest)*rounds-rest;
+  const total=prep+setTime*sets+(sets-1)*between;
+  const m=Math.floor(total/60),s=total%60;
+  document.getElementById('total-time').textContent=`${m}:${String(s).padStart(2,'0')}`;
+  return total;
+}
+
+function startTimer() {
+  const work=parseInt(document.getElementById('workTime').value)||20;
+  const rest=parseInt(document.getElementById('restTime').value)||10;
+  const rounds=parseInt(document.getElementById('rounds').value)||8;
+  const sets=parseInt(document.getElementById('sets').value)||1;
+  const between=parseInt(document.getElementById('setBetween').value)||60;
+  const prep=parseInt(document.getElementById('prepTime').value)||10;
+
+  state = { work, rest, rounds, sets, between, prep,
+    phase:'prepare', currentSet:1, currentRound:1, timeLeft:prep,
+    totalIntervals: prep>0?1:0 };
+  if(prep===0) state.phase='work', state.timeLeft=work;
+
+  const totalTime = (work+rest)*rounds*sets+(sets-1)*between+(prep>0?prep:0);
+  state.totalTime=totalTime; state.elapsed=0;
+
+  document.getElementById('config-panel').classList.add('hidden');
+  document.getElementById('timer-panel').classList.remove('hidden');
+
+  paused=false;
+  renderTimerState();
+  tripleBeep();
+  interval=setInterval(tick,1000);
+}
+
+function tick() {
+  if(paused) return;
+  state.elapsed++;
+  state.timeLeft--;
+
+  if(state.timeLeft===3 && state.phase!=='between-sets') countdownBeep();
+  if(state.timeLeft===2) countdownBeep();
+  if(state.timeLeft===1) countdownBeep();
+
+  if(state.timeLeft<=0) advancePhase();
+  else renderTimerState();
+}
+
+function advancePhase() {
+  const {phase,currentSet,currentRound,sets,rounds,work,rest,between} = state;
+
+  if(phase==='prepare'){
+    state.phase='work'; state.timeLeft=work;
+    tripleBeep();
+  } else if(phase==='work'){
+    if(currentRound<rounds){
+      state.phase='rest'; state.timeLeft=rest;
+      beep(440,0.2);
+    } else {
+      if(currentSet<sets){
+        state.phase='between-sets'; state.timeLeft=between;
+        beep(660,0.3);
+      } else {
+        // Done!
+        state.phase='done'; state.timeLeft=0;
+        clearInterval(interval);
+        completionBell();
+        renderTimerState();
+        return;
+      }
+    }
+  } else if(phase==='rest'){
+    state.phase='work'; state.currentRound++;
+    state.timeLeft=work;
+    tripleBeep();
+  } else if(phase==='between-sets'){
+    state.phase='work'; state.currentSet++; state.currentRound=1;
+    state.timeLeft=work;
+    tripleBeep();
+  }
+  renderTimerState();
+}
+
+function renderTimerState() {
+  const {phase,timeLeft,currentSet,sets,currentRound,rounds,work,rest,between,prep,elapsed,totalTime} = state;
+  const phaseConfigs = {
+    prepare:{ label:'PREPARE', bg:'bg-gray-800', ring:'#f59e0b', text:'text-yellow-300' },
+    work:   { label:'WORK',    bg:'bg-red-900',  ring:'#ef4444', text:'text-red-300' },
+    rest:   { label:'REST',    bg:'bg-blue-900', ring:'#3b82f6', text:'text-blue-300' },
+    'between-sets':{ label:'SET REST', bg:'bg-purple-900', ring:'#8b5cf6', text:'text-purple-300' },
+    done:   { label:'DONE!',   bg:'bg-green-900', ring:'#22c55e', text:'text-green-300' },
+  };
+  const cfg = phaseConfigs[phase]||phaseConfigs.prepare;
+
+  document.getElementById('phase-bg').className = `rounded-2xl p-6 shadow-2xl transition-colors duration-500 ${cfg.bg}`;
+  document.getElementById('phase-label').textContent = cfg.label;
+  document.getElementById('phase-label').className = `text-2xl font-bold uppercase tracking-widest mb-1 ${cfg.text}`;
+  document.getElementById('set-label').textContent = `Set ${currentSet} of ${sets} · Round ${currentRound} of ${rounds}`;
+  document.getElementById('countdown').textContent = timeLeft;
+
+  // Ring
+  const maxTime = phase==='work'?work:phase==='rest'?rest:phase==='between-sets'?between:phase==='prepare'?prep:1;
+  const pct = timeLeft/Math.max(maxTime,1);
+  const circumference = 2*Math.PI*95;
+  document.getElementById('timer-ring').style.stroke = cfg.ring;
+  document.getElementById('timer-ring').style.strokeDashoffset = circumference*(1-pct);
+
+  // Round indicators
+  const ri = document.getElementById('round-indicators');
+  ri.innerHTML='';
+  for(let i=1;i<=rounds;i++){
+    const dot=document.createElement('div');
+    dot.className='w-3 h-3 rounded-full transition-colors '+
+      (i<currentRound?'bg-green-400':i===currentRound?(phase==='work'?'bg-red-400 pulse-anim':'bg-blue-400'):'bg-gray-600');
+    ri.appendChild(dot);
+  }
+
+  // Total progress
+  const pctTotal = Math.min(100, Math.round(elapsed/Math.max(totalTime,1)*100));
+  document.getElementById('total-bar').style.width=pctTotal+'%';
+  document.getElementById('total-pct').textContent=pctTotal+'%';
+
+  if(phase==='done') {
+    document.getElementById('pause-btn').disabled=true;
+    document.getElementById('pause-btn').classList.add('opacity-50','cursor-not-allowed');
+    document.getElementById('set-label').textContent='Workout Complete! 🎉';
+  }
+}
+
+function togglePause() {
+  paused=!paused;
+  document.getElementById('pause-btn').textContent=paused?'Resume':'Pause';
+  if(!paused) beep(660,0.1);
+}
+
+function stopTimer() {
+  clearInterval(interval);
+  state={};
+  paused=false;
+  document.getElementById('config-panel').classList.remove('hidden');
+  document.getElementById('timer-panel').classList.add('hidden');
+  document.getElementById('pause-btn').textContent='Pause';
+  document.getElementById('pause-btn').disabled=false;
+  document.getElementById('pause-btn').classList.remove('opacity-50','cursor-not-allowed');
+}
+
+// Update total time on config change
+['workTime','restTime','rounds','sets','setBetween','prepTime'].forEach(id=>{
+  document.getElementById(id).addEventListener('input',calcTotal);
+});
+
+window.addEventListener('load',calcTotal);
+</script>
+</body>
+</html>
